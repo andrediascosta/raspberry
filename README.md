@@ -5,32 +5,24 @@
 
 ## Temperature Sensor
 
-1. Clone project
+1. Material
 
-2. Change the .env file vars according with your settings. You can find refresh token at devicehive admin.
+- Rapb 3 B+
+- DS18B20 (temperature sensor)
+- 4.7k resistor
 
-3. Configure the service file content to the correct paths
+2. enable 1 wire gpio
 
-
-### Service Configuration
-
-Config service (or copy form service folder)
 ```
-$ sudo nano /etc/systemd/system/devicehive_sensor.service
-```
+$ echo "dtoverlay=w1-gpio" | sudo tee -a /boot/config.txt
+$ sudo reboot
+$ sudo modprobe w1-gpio
+$ sudo modprobe w1-therm
 
-
-Start service
-```
-$ systemctl start devicehive_sensor
 ```
 
-Enable at startup
-```
-$ systemctl enable devicehive_sensor
-```
+3. Verify values
 
-Logs
 ```
-$ journalctl -fu devicehive_sensor.service
+$ cat /sys/bus/w1/devices/28-......../w1_slave
 ```
