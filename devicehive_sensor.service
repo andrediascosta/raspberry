@@ -1,0 +1,13 @@
+[Unit]
+Description=DeviceHive Themperature Measurement Service
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=pi
+ExecStart=/usr/bin/env python /home/pi/projects/raspi_led_thermo.py
+
+[Install]
+WantedBy=multi-user.target
