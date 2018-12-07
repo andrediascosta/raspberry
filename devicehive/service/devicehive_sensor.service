@@ -7,7 +7,7 @@ Type=simple
 Restart=always
 RestartSec=1
 User=pi
-ExecStart=/usr/bin/env python /home/pi/projects/raspi_led_thermo.py
+ExecStart=/usr/bin/env python /home/pi/projects/raspi_thermo.py
 
 [Install]
 WantedBy=multi-user.target

@@ -20,18 +20,30 @@ import hashlib
 import sched
 import time
 import threading
+import logging
+
 from devicehive import Handler
 from devicehive import DeviceHive
+
+import inspect
+#print(inspect.getsource(logging))
+
+logging.basicConfig()
+logger = logging.getLogger('logger')
+
 
 #http://playground.devicehive.com/api/rest
 SERVER_URL = os.environ.get('DEVICEHIVE_SERVER_URL')
 SERVER_REFRESH_TOKEN = os.environ.get('DEVICEHIVE_SERVER_REFRESH_TOKEN')
 
-print('connecting to server...')
-print(SERVER_URL)
+logger.info('connecting to server...')
+logger.info(SERVER_URL)
 
-DEVICE_ID = 'raspi-led-thermo-' \
-            + hashlib.md5(SERVER_REFRESH_TOKEN.encode()).hexdigest()[0:8]
+print(SERVER_REFRESH_TOKEN)
+
+logger.info(hashlib.md5(SERVER_REFRESH_TOKEN.encode()))
+
+DEVICE_ID = 'raspi-thermo-' + hashlib.md5(SERVER_REFRESH_TOKEN.encode()).hexdigest()[0:8]
 LED_PIN = 17
 
 
@@ -45,13 +57,13 @@ except ImportError:
         OUT = "OUT"
 
         def __init__(self):
-            print('Fake gpio initialized')
+            logger.warn('Fake gpio initialized')
 
         def setup(self, io, mode):
-            print('Set gpio {0}; Mode: {1};'.format(io, mode))
+            logger.warn('Set gpio {0}; Mode: {1};'.format(io, mode))
 
         def output(self, io, vlaue):
-            print('Set gpio {0}; Value: {1};'.format(io, vlaue))
+            logger.warn('Set gpio {0}; Value: {1};'.format(io, vlaue))
 
     GPIO = FakeGPIO()
 
@@ -86,7 +98,7 @@ class TempSensor(object):
 
 class SampleHandler(Handler):
     INTERVAL_SECONDS = 5*60
-    COORDINATES = {'lat': 39.908419, 'lng': -8.6315328}
+    COORDINATES = {'lat': 40.20328995345767, 'lng': -8.4270206263202}
     UNITS = 'c'
     DEVICE_TYPE = 'Thermostats'
 
@@ -98,7 +110,7 @@ class SampleHandler(Handler):
         self._scheduler = sched.scheduler(time.time, time.sleep)
         GPIO.setup(LED_PIN, GPIO.OUT)
         GPIO.output(LED_PIN, 0)
-        print('DeviceId: ' + self._device_id)
+        logger.info('DeviceId: ' + self._device_id)
 
     def _timer_loop(self):
         t = self._sensor.get_temp()
@@ -113,7 +125,7 @@ class SampleHandler(Handler):
     def handle_connect(self):
         self._device = self.api.put_device(self._device_id)
         self._device.subscribe_insert_commands()
-        print('Connected')
+        logger.warn('Connected')
         self._timer_loop()
         t = threading.Thread(target=self._scheduler.run)
         t.setDaemon(True)
