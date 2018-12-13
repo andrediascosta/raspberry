@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 # Copyright (C) 2018 DataArt
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,34 +24,35 @@ import sched
 import time
 import threading
 import logging
+import random
+import datetime
+import uuid
 
 from devicehive import Handler
 from devicehive import DeviceHive
 
-import inspect
+#import inspect
 #print(inspect.getsource(logging))
 
-logging.basicConfig()
+logging.basicConfig(filename='/home/pi/raspi-thermo.log', filemode='w', level=logging.INFO)
 logger = logging.getLogger('logger')
 
-
-#http://playground.devicehive.com/api/rest
-SERVER_URL = os.environ.get('DEVICEHIVE_SERVER_URL')
+SERVER_URL = os.environ.get('DEVICEHIVE_SERVER_URL') if os.environ.get('DEVICEHIVE_SERVER_URL') else 'https://playground.devicehive.com/api/rest'
 SERVER_REFRESH_TOKEN = os.environ.get('DEVICEHIVE_SERVER_REFRESH_TOKEN')
+DEVICE_ID = os.environ.get('DEVICEHIVE_DEVICE_ID') + '-' + hashlib.md5(SERVER_REFRESH_TOKEN.encode()).hexdigest()[0:8]
+DEVICE_COORDINATES = os.environ.get('DEVICEHIVE_DEVICE_COORDINATES').split(',')
+DEVICE_TYPE = os.environ.get('DEVICEHIVE_DEVICE_TYPE') if os.environ.get('DEVICEHIVE_DEVICE_TYPE') else 'Thermostats'
+SI_UNITS = os.environ.get('DEVICEHIVE_SI_UNITS') if os.environ.get('DEVICEHIVE_SI_UNITS') else 'ºC'
+READINGS_INTERVAL = os.environ.get('DEVICEHIVE_READINGS_INTERVAL') if os.environ.get('DEVICEHIVE_READINGS_INTERVAL') else 60*60	# in seconds
+GENERATE_UNIQUE_IDS = os.environ.get('DEVICEHIVE_GENERATE_UNIQUE_IDS') if os.environ.get('DEVICEHIVE_GENERATE_UNIQUE_IDS') else False
 
-logger.info('connecting to server...')
-logger.info(SERVER_URL)
+LED_PIN = os.environ.get('DEVICEHIVE_LED_PIN') if os.environ.get('DEVICEHIVE_LED_PIN') else 17
 
-print(SERVER_REFRESH_TOKEN)
+"""
 
-logger.info(hashlib.md5(SERVER_REFRESH_TOKEN.encode()))
+ Real or fake GPIO handler.
 
-DEVICE_ID = 'raspi-thermo-' + hashlib.md5(SERVER_REFRESH_TOKEN.encode()).hexdigest()[0:8]
-LED_PIN = 17
-
-
-''' Real or fake GPIO handler.
-'''
+"""
 try:
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BCM)
@@ -57,19 +61,21 @@ except ImportError:
         OUT = "OUT"
 
         def __init__(self):
-            logger.warn('Fake gpio initialized')
+            logger.info('Fake gpio initialized')
 
         def setup(self, io, mode):
-            logger.warn('Set gpio {0}; Mode: {1};'.format(io, mode))
+            logger.info('Set gpio {0}; Mode: {1};'.format(io, mode))
 
         def output(self, io, vlaue):
-            logger.warn('Set gpio {0}; Value: {1};'.format(io, vlaue))
+            logger.info('Set gpio {0}; Value: {1};'.format(io, vlaue))
 
     GPIO = FakeGPIO()
 
 
 """
-Temperature sensor wrapper. Gets temperature readings form file.
+
+  Temperature sensor wrapper. Gets temperature readings from file.
+
 """
 class TempSensor(object):
     def __init__(self):
@@ -97,15 +103,11 @@ class TempSensor(object):
 
 
 class SampleHandler(Handler):
-    INTERVAL_SECONDS = 5*60
-    COORDINATES = {'lat': 40.20328995345767, 'lng': -8.4270206263202}
-    UNITS = 'c'
-    DEVICE_TYPE = 'Thermostats'
 
     def __init__(self, api, device_id=DEVICE_ID):
         super(SampleHandler, self).__init__(api)
         self._device_id = device_id
-        self._device = self.DEVICE_TYPE #None
+        self._device = DEVICE_TYPE
         self._sensor = TempSensor()
         self._scheduler = sched.scheduler(time.time, time.sleep)
         GPIO.setup(LED_PIN, GPIO.OUT)
@@ -113,19 +115,39 @@ class SampleHandler(Handler):
         logger.info('DeviceId: ' + self._device_id)
 
     def _timer_loop(self):
-        t = self._sensor.get_temp()
+	id = uuid.uuid1() if GENERATE_UNIQUE_IDS else self._device_id
+        temperature = self._sensor.get_temp()
+	timestamp = datetime.datetime.now()
         self._device.send_notification('temperature', parameters={
-			'id': DEVICE_ID,
-			'coordinates': self.COORDINATES,
-			'parameters': {'type': self.DEVICE_TYPE, 'value': t, 'units': self.UNITS}
+			'id': str(id),
+			'device_id': self._device_id,
+			'type': DEVICE_TYPE,
+			'location': {
+				'type': 'Point',
+				'coordinates': DEVICE_COORDINATES
+			},
+			'properties':{
+				'name': self._device_id,
+				'type': DEVICE_TYPE,
+				'temperature': temperature,
+				'unit_of_measurement': SI_UNITS,
+				'datetime': str(timestamp)
+			},
+			'timestamp': str(timestamp),
+			'temperature': temperature
 		}
 	)
-        self._scheduler.enter(self.INTERVAL_SECONDS, 1, self._timer_loop, ())
+
+	logger.info('temperature => '+str(temperature))
+
+        self._scheduler.enter(float(READINGS_INTERVAL), 60, self._timer_loop, ())
 
     def handle_connect(self):
+	logger.info('connecting to server...'+SERVER_URL)
         self._device = self.api.put_device(self._device_id)
-        self._device.subscribe_insert_commands()
-        logger.warn('Connected')
+#        self._device.subscribe_insert_commands()
+        logger.info('Connected!')
+
         self._timer_loop()
         t = threading.Thread(target=self._scheduler.run)
         t.setDaemon(True)
