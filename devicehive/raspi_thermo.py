@@ -43,7 +43,7 @@ DEVICE_ID = os.environ.get('DEVICEHIVE_DEVICE_ID') + '-' + hashlib.md5(SERVER_RE
 DEVICE_COORDINATES = os.environ.get('DEVICEHIVE_DEVICE_COORDINATES').split(',')
 DEVICE_TYPE = os.environ.get('DEVICEHIVE_DEVICE_TYPE') if os.environ.get('DEVICEHIVE_DEVICE_TYPE') else 'Thermostats'
 SI_UNITS = os.environ.get('DEVICEHIVE_SI_UNITS') if os.environ.get('DEVICEHIVE_SI_UNITS') else 'ºC'
-READINGS_INTERVAL = os.environ.get('DEVICEHIVE_READINGS_INTERVAL') if os.environ.get('DEVICEHIVE_READINGS_INTERVAL') else 60*60	# in seconds
+READINGS_INTERVAL = os.environ.get('DEVICEHIVE_READINGS_INTERVAL') if os.environ.get('DEVICEHIVE_READINGS_INTERVAL') else 60*10	# => 10 min
 GENERATE_UNIQUE_IDS = os.environ.get('DEVICEHIVE_GENERATE_UNIQUE_IDS') if os.environ.get('DEVICEHIVE_GENERATE_UNIQUE_IDS') else False
 
 LED_PIN = os.environ.get('DEVICEHIVE_LED_PIN') if os.environ.get('DEVICEHIVE_LED_PIN') else 17
@@ -115,7 +115,7 @@ class SampleHandler(Handler):
         logger.info('DeviceId: ' + self._device_id)
 
     def _timer_loop(self):
-	id = uuid.uuid1() if GENERATE_UNIQUE_IDS else self._device_id
+	id = uuid.uuid1() if bool(GENERATE_UNIQUE_IDS) else self._device_id
         temperature = self._sensor.get_temp()
 	timestamp = datetime.datetime.now()
         self._device.send_notification('temperature', parameters={
@@ -138,7 +138,7 @@ class SampleHandler(Handler):
 		}
 	)
 
-	logger.info('temperature => '+str(temperature))
+	logger.info('['+self._device_id+'] ' + 'temperature => '+str(temperature))
 
         self._scheduler.enter(float(READINGS_INTERVAL), 60, self._timer_loop, ())
 
